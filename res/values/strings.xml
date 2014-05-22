@@ -2,7 +2,7 @@
 <resources>
 
     <string name="app_name">Shell</string>
-    <string name="prompt">shell:</string>
-    <string name="button_text">execute</string>
+    <string name="prompt"></string>
+    <string name="button_text">go</string>
 	<string name="command_box_hint">Type a Command</string>
 </resources>

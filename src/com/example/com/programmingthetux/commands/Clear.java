@@ -12,12 +12,13 @@ public class Clear extends Command {
 
 	@Override
 	public int execute(MainActivity ctx, String[] parameters) {
-		// TODO Auto-generated method stub
+		ctx.clearOutput();
 		return 0;
 	}
 
 	@Override
 	public boolean takeParameters() {
+		//The GNU version of clear will happily take (and ignore) arguments
 		return true;
 	}
 
