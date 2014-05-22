@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Shell</string>
+    <string name="prompt">shell:</string>
+    <string name="button_text">execute</string>
+	<string name="command_box_hint">Type a Command</string>
+</resources>
