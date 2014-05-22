@@ -1,19 +1,22 @@
 package com.example.com.programmingthetux.tutorial;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
-import android.view.View.OnClickListener;
-import android.widget.Button;
+import android.view.View.OnKeyListener;
 import android.widget.EditText;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.example.com.programmingthetux.commands.Cat;
@@ -46,7 +49,7 @@ public class MainActivity extends Activity {
 	private HashMap<String, Command> map = new HashMap<String, Command>();
 	private String bash_prompt = "%u: %s "; //%s will be replaced by the working directory
 	//this can be updated to reflect the apps current working directory
-	private String curWrkDir = default_command.get_current_directory();	 
+	private String curWrkDir = "/";	 
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -54,20 +57,26 @@ public class MainActivity extends Activity {
 		this.setContentView(R.layout.activity_main);
 		
 		
-		 EditText command_text = (EditText) findViewById(R.id.command);
+
+
+
 		
-		 
-		 Button executeButton = (Button)findViewById(R.id.execute_button);
-		 executeButton.setOnClickListener(new OnClickListener() {
-			 @Override
-			 public void onClick(View arg0) {
-				 Log.d(TAG, "execute command clicked");
-				 //TODO clear the command text, execute the command, and update the text view
-			 }
-		 });
-		
-		
-		setContentView(R.layout.activity_main);
+		final EditText command_text = (EditText) findViewById(R.id.command);
+//		command_text.setImeActionLabel("execute", KeyEvent.KEYCODE_ENTER);
+		command_text.setOnKeyListener(new OnKeyListener() {
+			public boolean onKey(View v, int keyCode, KeyEvent event) {
+		        // If the event is a key-down event on the "enter" button
+				Log.d(TAG, "key pressed");
+		        if ((event.getAction() == KeyEvent.ACTION_DOWN) &&
+		            (keyCode == KeyEvent.KEYCODE_ENTER)) {
+		        	// Perform action on key press
+		        	Log.d(TAG, "enter pressed");
+		        	processCommand(v);
+		        	return true;
+		        }
+		        return false;
+		    }
+		});
 		
 		/* Add the commands to the hashmap */
 		map.put("cat",new Cat());
@@ -119,20 +128,34 @@ public class MainActivity extends Activity {
 //		TextView prompt = (TextView) findViewById(R.id.update_text);
 		
 		String command_string = command_text.getText().toString();
-	 	String result[] = command_string.split(" "); //split the string up by words
+//	 	String result[] = command_string.split(" "); //split the string up by words
+		List<String> args = new ArrayList<String>();
+		Matcher m = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(command_string);
+		//pull out the command
+		String cmd = null;
+		try {
+			m.find();
+			cmd = m.group(1);
+		} catch (IllegalStateException e) {}
+		
+		//pull out the arguments
+		while (m.find()) {
+			args.add(m.group(1).replace("\"", ""));
+		}
 		
 		
-		if(result[0].equals("")) {
+		if(cmd == null) {
 			//empty command given, just append a new prompt
 			this.appendOutput("");
 		} else {
-			current_command = map.get(result[0]);
+			current_command = map.get(cmd);
 //			String prompt_string = buildPromptString(default_command.get_current_directory());
 			if(current_command == null) {
-				appendOutput("bash: " + result[0] + ": command not found");
+				appendOutput("bash: " + cmd + ": command not found");
 			}
 			else {
-				if (current_command.execute(this, Arrays.copyOfRange(result, 1, result.length)) == 0) {
+				String[] argsArray = args.toArray(new String[ args.size() ]);
+				if (current_command.execute(this, argsArray) == 0) {
 					//command executed properly, clear the command input box
 					command_text.setText("");
 				}
@@ -142,32 +165,31 @@ public class MainActivity extends Activity {
 	
 	
 	public String getUsername(){
-	    AccountManager manager = AccountManager.get(this); 
+		String username = null;
+		AccountManager manager = AccountManager.get(this); 
 	    Account[] accounts = manager.getAccountsByType("com.google"); 
 	    List<String> possibleEmails = new LinkedList<String>();
 
 	    for (Account account : accounts) {
-	      // TODO: Check possibleEmail against an email regex or treat
-	      // account.name as an email address only for certain account.type values.
+
 	      possibleEmails.add(account.name);
 	    }
 
 	    if(!possibleEmails.isEmpty() && possibleEmails.get(0) != null){
 	        String email = possibleEmails.get(0);
 	        String[] parts = email.split("@");
-	        if(parts.length > 0 && parts[0] != null)
-	            return parts[0];
-	        else
-	            return null;
-	    }else
-	        return null;
+	        if(parts.length > 0 && parts[0] != null) {
+	            username = parts[0];
+	        }
+	    }
+	    return username;
 	}
 	
 	public String buildPromptString(String cwd) {
 		String userName = getUsername();
 		String prompt_string = bash_prompt.replaceAll("%u", userName == null ? "shell" : userName);
 		prompt_string = prompt_string.replaceAll("%s", cwd == null ? "?" : cwd);
-		
+		prompt_string = prompt_string + " " + USER_PROMPT + " ";
 		return prompt_string;
 	}
 	
@@ -177,9 +199,24 @@ public class MainActivity extends Activity {
 		} else {
 			String ps1 = buildPromptString(curWrkDir);
 			 TextView prompt = (TextView) findViewById(R.id.update_text);
-			 prompt.setText(prompt.getText().toString() + "\n" + ps1
-						+ USER_PROMPT + " " + output);
+			 prompt.setText(prompt.getText().toString() + "\n" + ps1 + output);
+			 final ScrollView sv = (ScrollView) findViewById(R.id.output_scrollview);
+			 //scroll the view down in a separate thread. This makes sure that the new
+			 //line of text is applied before scrolling, and should reduce activity on
+			 //the main thread
+			 sv.post(new Runnable() {
+		        public void run()
+		        {
+		            sv.fullScroll(View.FOCUS_DOWN);
+		            findViewById(R.id.command).requestFocus();
+		        }
+		    });
 		}
+	}
+	
+	public void clearOutput() {
+		TextView tv = (TextView) findViewById(R.id.update_text);
+		tv.setText(buildPromptString(this.curWrkDir));
 	}
 
 	public String getCurWrkDir() {
