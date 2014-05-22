@@ -49,14 +49,26 @@ public class MainActivity extends Activity {
 	private HashMap<String, Command> map = new HashMap<String, Command>();
 	private String bash_prompt = "%u: %s "; //%s will be replaced by the working directory
 	//this can be updated to reflect the apps current working directory
-	private String curWrkDir = "/";	 
+	private String curWrkDir = "/";
+	private LimitedQueue<String> outputLines = new LimitedQueue<String>(200);
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		this.setContentView(R.layout.activity_main);
 		
-		
+		if (savedInstanceState != null) {
+			 super.onRestoreInstanceState(savedInstanceState);
+			  outputLines.clear();
+			  String oldOutput = savedInstanceState.getString("outputLines");
+			  if (oldOutput != null) {
+				  String[] lines = oldOutput.split("\n");
+				  for (String line: lines) {
+					  //
+					  outputLines.add(line);
+				  }
+			  }
+		}
 
 
 
@@ -102,7 +114,14 @@ public class MainActivity extends Activity {
 		default_command = map.get("pwd");
 //		String prompt_string = buildPromptString(default_command.get_current_directory());
 //		prompt.setText(prompt_string); 
-		appendOutput("");
+		
+		//if this was the first time the activity was created then append an empty line
+		//otherwise just use the lines already there
+		if (savedInstanceState == null || outputLines.isEmpty()) {
+			appendOutput("");
+		} else {
+			appendOutput(null);
+		}
 	}
 
 	@Override
@@ -193,30 +212,35 @@ public class MainActivity extends Activity {
 		return prompt_string;
 	}
 	
+	/**
+	 * Add a line of text to the output log and update the view.
+	 * @param output the line of text to append to the output log. If
+	 * null then no line is appended, but the view is still redrawn.
+	 */
 	public void appendOutput(String output) {
-		if (output == null) {
-			Log.w(TAG, "sent null output to append");
-		} else {
+		if (output != null) {
 			String ps1 = buildPromptString(curWrkDir);
-			 TextView prompt = (TextView) findViewById(R.id.update_text);
-			 prompt.setText(prompt.getText().toString() + "\n" + ps1 + output);
-			 final ScrollView sv = (ScrollView) findViewById(R.id.output_scrollview);
-			 //scroll the view down in a separate thread. This makes sure that the new
-			 //line of text is applied before scrolling, and should reduce activity on
-			 //the main thread
-			 sv.post(new Runnable() {
-		        public void run()
-		        {
-		            sv.fullScroll(View.FOCUS_DOWN);
-		            findViewById(R.id.command).requestFocus();
-		        }
-		    });
+			outputLines.add(ps1 + output);
 		}
+			
+		TextView prompt = (TextView) findViewById(R.id.update_text);
+		prompt.setText(outputLines.toString());
+		
+		//scroll the view down in a separate thread. This makes sure that the new
+		//line of text is applied before scrolling, and should reduce activity on
+		//the main thread
+		final ScrollView sv = (ScrollView) findViewById(R.id.output_scrollview);
+		sv.post(new Runnable() {
+			public void run() {
+	            sv.fullScroll(View.FOCUS_DOWN);
+	            findViewById(R.id.command).requestFocus();
+	        }
+	    });
 	}
 	
 	public void clearOutput() {
-		TextView tv = (TextView) findViewById(R.id.update_text);
-		tv.setText(buildPromptString(this.curWrkDir));
+		outputLines.clear();
+		appendOutput("");
 	}
 
 	public String getCurWrkDir() {
@@ -225,5 +249,51 @@ public class MainActivity extends Activity {
 
 	public void setCurWrkDir(String curWrkDir) {
 		this.curWrkDir = curWrkDir;
+	}
+	
+	@Override
+	public void onSaveInstanceState(Bundle savedInstanceState) {
+	  super.onSaveInstanceState(savedInstanceState);
+	  //store the current output lines as a single string.
+	  //TODO save as array list or some other supported data type
+	  savedInstanceState.putString("outputLines", outputLines.toString());
+	}
+	
+	@Override
+	public void onRestoreInstanceState(Bundle savedInstanceState) {
+	 
+	}
+	
+	private class LimitedQueue<E> extends LinkedList<E> {
+
+		// Auto generated UID
+		private static final long serialVersionUID = -7509308122323737391L;
+		private final int limit;
+
+	    public LimitedQueue(int limit) {
+	        this.limit = limit;
+	    }
+
+	    @Override
+	    public boolean add(E o) {
+	        super.add(o);
+	        while (size() > limit) {
+	        	super.remove();
+	        }
+	        return true;
+	    }
+	    
+	    @Override
+	    public String toString() {
+	    	StringBuilder sb = new StringBuilder();
+	    	for (E line: this) {
+	    		if (line instanceof String) {
+	    			sb.append(line + "\n");
+	    		} else {
+	    			sb.append(line.toString() + "\n");
+	    		}
+	    	}
+	    	return sb.toString();
+	    }
 	}
 }
