@@ -26,7 +26,6 @@ import com.example.com.programmingthetux.commands.Command;
 import com.example.com.programmingthetux.commands.Date;
 import com.example.com.programmingthetux.commands.Echo;
 import com.example.com.programmingthetux.commands.Find;
-import com.example.com.programmingthetux.commands.GenericRunner;
 import com.example.com.programmingthetux.commands.Help;
 import com.example.com.programmingthetux.commands.Less;
 import com.example.com.programmingthetux.commands.Ls;
@@ -50,8 +49,7 @@ public class MainActivity extends Activity {
 	private HashMap<String, Command> map = new HashMap<String, Command>();
 	private String bash_prompt = "%u: %s "; //%s will be replaced by the working directory
 	//this can be updated to reflect the apps current working directory
-	private String curWrkDir = "/";
-	private LimitedQueue<String> outputLines = new LimitedQueue<String>(200);
+	private String curWrkDir = "/";	 
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -164,21 +162,12 @@ public class MainActivity extends Activity {
 		
 		if(cmd == null) {
 			//empty command given, just append a new prompt
-//			this.appendOutput("");
+			this.appendOutput("");
 		} else {
 			current_command = map.get(cmd);
 //			String prompt_string = buildPromptString(default_command.get_current_directory());
 			if(current_command == null) {
-//				appendOutput("bash: " + cmd + ": command not found");
-				//not a built in command, try farming out to the GenericRunner
-				String[] argsArray = new String[args.size() +1];
-				argsArray[0] = cmd;
-				for (int i = 1; i < args.size(); i++) {
-					argsArray[i] = args.remove(0);
-				}
-				if (new GenericRunner().execute(this, argsArray) == 0) {
-					command_text.setText("");
-				}
+				appendOutput("bash: " + cmd + ": command not found");
 			}
 			else {
 				String[] argsArray = args.toArray(new String[ args.size() ]);
@@ -188,7 +177,6 @@ public class MainActivity extends Activity {
 				}
 			}
 		}
-		this.appendPrompt();
 	}
 	
 	
@@ -221,43 +209,30 @@ public class MainActivity extends Activity {
 		return prompt_string;
 	}
 	
-	/**
-	 * Add a line of text to the output log and update the view.
-	 * @param output the line of text to append to the output log. If
-	 * null then no line is appended, but the view is still redrawn.
-	 */
 	public void appendOutput(String output) {
-		if (output != null) {
-			outputLines.add(output);
-		}
-			
-		TextView prompt = (TextView) findViewById(R.id.update_text);
-		prompt.setText(outputLines.toString());
-		
+		if (output == null) {
+			Log.w(TAG, "sent null output to append");
+		} else {
+			String ps1 = buildPromptString(curWrkDir);
+			 TextView prompt = (TextView) findViewById(R.id.update_text);
+			 prompt.setText(prompt.getText().toString() + "\n" + ps1 + output);
+			 final ScrollView sv = (ScrollView) findViewById(R.id.output_scrollview);
 		//scroll the view down in a separate thread. This makes sure that the new
 		//line of text is applied before scrolling, and should reduce activity on
 		//the main thread
-		final ScrollView sv = (ScrollView) findViewById(R.id.output_scrollview);
 		sv.post(new Runnable() {
-			public void run() {
+		        public void run()
+		        {
 	            sv.fullScroll(View.FOCUS_DOWN);
 	            findViewById(R.id.command).requestFocus();
 	        }
 	    });
 	}
-	
-	/**
-	 * Append a prompt to the output
-	 */
-	public void appendPrompt() {
-		String ps1 = buildPromptString(curWrkDir);
-		assert ps1 != null;
-		appendOutput(ps1);
 	}
 	
 	public void clearOutput() {
-		outputLines.clear();
-		appendOutput("");
+		TextView tv = (TextView) findViewById(R.id.update_text);
+		tv.setText(buildPromptString(this.curWrkDir));
 	}
 
 	public String getCurWrkDir() {

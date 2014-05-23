@@ -16,7 +16,6 @@ public class Cd extends Command {
 	
 	@Override
 	public int execute(MainActivity ctx, String[] parameters) {
-		// TODO Auto-generated method stub
 		int returnCode = 1;
 		if (parameters.length == 0) {
 			ctx.appendOutput("cd: error: no parameters given");
