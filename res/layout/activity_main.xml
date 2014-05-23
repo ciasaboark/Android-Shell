@@ -35,7 +35,7 @@
         android:gravity="top|center_vertical"
         android:orientation="horizontal" >
 
-        <EditText
+        <com.example.com.programmingthetux.tutorial.ZanyEditText
             android:id="@+id/command"
             android:layout_width="wrap_content"
             android:layout_height="49dp"
@@ -47,7 +47,7 @@
             android:textColor="#FFFFFF" >
 
             <requestFocus />
-        </EditText>
+        </com.example.com.programmingthetux.tutorial.ZanyEditText>
 
         <Button
             android:id="@+id/execute_button"

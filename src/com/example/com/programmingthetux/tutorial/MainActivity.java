@@ -11,11 +11,12 @@ import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnKeyListener;
-import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -26,6 +27,7 @@ import com.example.com.programmingthetux.commands.Command;
 import com.example.com.programmingthetux.commands.Date;
 import com.example.com.programmingthetux.commands.Echo;
 import com.example.com.programmingthetux.commands.Find;
+import com.example.com.programmingthetux.commands.GenericRunner;
 import com.example.com.programmingthetux.commands.Help;
 import com.example.com.programmingthetux.commands.Less;
 import com.example.com.programmingthetux.commands.Ls;
@@ -45,11 +47,12 @@ public class MainActivity extends Activity {
 	private static final String USER_PROMPT = "$";
 	private static final String ROOT_PROMPT = "#";
 	private Command current_command = null;
-	private Command default_command = new Pwd();
 	private HashMap<String, Command> map = new HashMap<String, Command>();
 	private String bash_prompt = "%u: %s "; //%s will be replaced by the working directory
 	//this can be updated to reflect the apps current working directory
 	private String curWrkDir = "/";	 
+	private LimitedQueue<String> outputLines = new LimitedQueue<String>(200);
+	private StringBuilder commandText = new StringBuilder();
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -72,22 +75,49 @@ public class MainActivity extends Activity {
 
 
 		
-		final EditText command_text = (EditText) findViewById(R.id.command);
-//		command_text.setImeActionLabel("execute", KeyEvent.KEYCODE_ENTER);
+		final ZanyEditText command_text = (ZanyEditText) findViewById(R.id.command);
+		command_text.setImeActionLabel("execute", KeyEvent.KEYCODE_ENTER);
 		command_text.setOnKeyListener(new OnKeyListener() {
 			public boolean onKey(View v, int keyCode, KeyEvent event) {
 		        // If the event is a key-down event on the "enter" button
 				Log.d(TAG, "key pressed");
 		        if ((event.getAction() == KeyEvent.ACTION_DOWN) &&
-		            (keyCode == KeyEvent.KEYCODE_ENTER)) {
+		        		(keyCode == KeyEvent.KEYCODE_ENTER)) {
 		        	// Perform action on key press
 		        	Log.d(TAG, "enter pressed");
 		        	processCommand(v);
 		        	return true;
+		        } else if ((event.getAction() == KeyEvent.ACTION_DOWN) &&
+		        		(keyCode == KeyEvent.KEYCODE_DEL)) {
+		        	Log.d(TAG, "backspace pressed");
+					removeLastChar();
 		        }
 		        return false;
 		    }
 		});
+		
+		command_text.addTextChangedListener(new TextWatcher() {
+			  @Override
+			  public void afterTextChanged(Editable e) {
+				  //nothing to do here
+			  }
+
+			  @Override
+			  public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+			    //nothing needed here...
+			  }
+
+			  @Override
+			  public void onTextChanged(CharSequence s, int start, int before, int count) {
+				  String textFromEditView = command_text.getText().toString();
+				  if (!textFromEditView.equals("")) {
+					  commandText.append(textFromEditView);
+					  appendChar(textFromEditView);
+					  ZanyEditText command_text = (ZanyEditText) findViewById(R.id.command);
+					  command_text.setText("");
+				  }
+			  }
+			});
 		
 		/* Add the commands to the hashmap */
 		map.put("cat",new Cat());
@@ -110,7 +140,6 @@ public class MainActivity extends Activity {
 		map.put("which", new Which());
 		map.put("whois", new Whois());
 		
-		default_command = map.get("pwd");
 //		String prompt_string = buildPromptString(default_command.get_current_directory());
 //		prompt.setText(prompt_string); 
 		
@@ -142,9 +171,10 @@ public class MainActivity extends Activity {
 	}
 	
 	public void processCommand(View view) {
-		EditText command_text = (EditText) findViewById(R.id.command);
 		
-		String command_string = command_text.getText().toString();
+
+		String command_string = commandText.toString();
+		commandText = new StringBuilder();
 		List<String> args = new ArrayList<String>();
 		Matcher m = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(command_string);
 		//pull out the command
@@ -153,30 +183,28 @@ public class MainActivity extends Activity {
 			m.find();
 			cmd = m.group(1);
 		} catch (IllegalStateException e) {}
-		
+
 		//pull out the arguments
 		while (m.find()) {
 			args.add(m.group(1).replace("\"", ""));
 		}
-		
-		
-		if(cmd == null) {
-			//empty command given, just append a new prompt
-			this.appendOutput("");
+
+		current_command = map.get(cmd);
+		if(current_command == null) {
+			//not a built in command, try farming out to the GenericRunner
+			String[] argsArray = new String[args.size() +1];
+			argsArray[0] = cmd;
+			for (int i = 1; i < args.size(); i++) {
+				argsArray[i] = args.remove(0);
+			}
+			new GenericRunner().execute(this, argsArray);
 		} else {
-			current_command = map.get(cmd);
-//			String prompt_string = buildPromptString(default_command.get_current_directory());
-			if(current_command == null) {
-				appendOutput("bash: " + cmd + ": command not found");
-			}
-			else {
-				String[] argsArray = args.toArray(new String[ args.size() ]);
-				if (current_command.execute(this, argsArray) == 0) {
-					//command executed properly, clear the command input box
-					command_text.setText("");
-				}
-			}
+			String[] argsArray = args.toArray(new String[ args.size() ]);
+			current_command.execute(this, argsArray);
 		}
+		
+		
+		this.appendPrompt();
 	}
 	
 	
@@ -209,30 +237,99 @@ public class MainActivity extends Activity {
 		return prompt_string;
 	}
 	
+	/**
+	 * Add a line of text to the output log and update the view.
+	 * @param output the line of text to append to the output log. If
+	 * null then no line is appended, but the view is still redrawn.
+	 */
 	public void appendOutput(String output) {
-		if (output == null) {
-			Log.w(TAG, "sent null output to append");
-		} else {
-			String ps1 = buildPromptString(curWrkDir);
-			 TextView prompt = (TextView) findViewById(R.id.update_text);
-			 prompt.setText(prompt.getText().toString() + "\n" + ps1 + output);
-			 final ScrollView sv = (ScrollView) findViewById(R.id.output_scrollview);
+		if (output != null) {
+			outputLines.add(output);
+		}
+
+		TextView prompt = (TextView) findViewById(R.id.update_text);
+		prompt.setText(outputLines.toString());
+
 		//scroll the view down in a separate thread. This makes sure that the new
 		//line of text is applied before scrolling, and should reduce activity on
 		//the main thread
+		final ScrollView sv = (ScrollView) findViewById(R.id.output_scrollview);
 		sv.post(new Runnable() {
-		        public void run()
-		        {
+			public void run() {
 	            sv.fullScroll(View.FOCUS_DOWN);
 	            findViewById(R.id.command).requestFocus();
 	        }
 	    });
 	}
+	
+	/**
+	 * Removes the last char from the current output line (if one exists)
+	 */
+	public void removeLastChar() {
+		//pull out the last line in the output, strip the char, and place
+		//the line back in the queue
+		if (!outputLines.isEmpty()) {
+			StringBuilder sb = new StringBuilder("");
+			String line = outputLines.tail();
+			if (line != null && !line.equals("")) {
+				sb.append(line.substring(0, line.length() - 1));
+			}
+			outputLines.add(sb.toString());
+		}
+		
+		//remove the last char from the current command string
+		if (commandText.length() != 0) {
+				commandText.deleteCharAt(commandText.length() - 1);
+		}
+		
+		TextView prompt = (TextView) findViewById(R.id.update_text);
+		prompt.setText(outputLines.toString());
+		
+		final ScrollView sv = (ScrollView) findViewById(R.id.output_scrollview);
+		sv.post(new Runnable() {
+			public void run() {
+	            sv.fullScroll(View.FOCUS_DOWN);
+	            findViewById(R.id.command).requestFocus();
+	        }
+	    });
+	}
+	
+	public void appendChar(String ch) {
+		//pull out the last line in the output, append the char, and place it back in the queue
+		if (ch != null && !ch.equals("")) {
+			StringBuilder sb = new StringBuilder();
+			String line = null;
+			if ((line = outputLines.tail()) != null) {
+				sb.append(line);
+			}
+			sb.append(ch);
+			outputLines.add(sb.toString());
+		}
+		
+		TextView prompt = (TextView) findViewById(R.id.update_text);
+		prompt.setText(outputLines.toString());
+		
+		final ScrollView sv = (ScrollView) findViewById(R.id.output_scrollview);
+		sv.post(new Runnable() {
+			public void run() {
+	            sv.fullScroll(View.FOCUS_DOWN);
+	            findViewById(R.id.command).requestFocus();
+	        }
+	    });
+		
+	}
+	
+	/**
+	 * Append a prompt to the output
+	 */
+	public void appendPrompt() {
+		String ps1 = buildPromptString(curWrkDir);
+		assert ps1 != null;
+		appendOutput(ps1);
 	}
 	
 	public void clearOutput() {
-		TextView tv = (TextView) findViewById(R.id.update_text);
-		tv.setText(buildPromptString(this.curWrkDir));
+		outputLines.clear();
 	}
 
 	public String getCurWrkDir() {
@@ -273,6 +370,11 @@ public class MainActivity extends Activity {
 	        	super.remove();
 	        }
 	        return true;
+	    }
+	    
+	    public E tail() {
+	    	E tailObj = this.removeLast();
+	    	return tailObj;
 	    }
 	    
 	    @Override

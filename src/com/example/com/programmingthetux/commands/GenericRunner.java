@@ -5,14 +5,16 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
+
+import android.util.Log;
 
 import com.example.com.programmingthetux.tutorial.MainActivity;
 
 public class GenericRunner extends Command {
 	private MainActivity ctx;
+	private static final String TAG = "GenericRunner";
 	
 	@Override
 	public int execute(final MainActivity context, String[] parameters) {
@@ -62,6 +64,9 @@ public class GenericRunner extends Command {
 				}
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (NullPointerException e) {
+				Log.d(TAG, "execute() caught null pointer exception: " + e.getMessage());
 				e.printStackTrace();
 			}
 			
