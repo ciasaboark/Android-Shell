@@ -26,6 +26,7 @@ import com.example.com.programmingthetux.commands.Command;
 import com.example.com.programmingthetux.commands.Date;
 import com.example.com.programmingthetux.commands.Echo;
 import com.example.com.programmingthetux.commands.Find;
+import com.example.com.programmingthetux.commands.GenericRunner;
 import com.example.com.programmingthetux.commands.Help;
 import com.example.com.programmingthetux.commands.Less;
 import com.example.com.programmingthetux.commands.Ls;
@@ -118,7 +119,7 @@ public class MainActivity extends Activity {
 		//if this was the first time the activity was created then append an empty line
 		//otherwise just use the lines already there
 		if (savedInstanceState == null || outputLines.isEmpty()) {
-			appendOutput("");
+			appendPrompt();
 		} else {
 			appendOutput(null);
 		}
@@ -144,10 +145,8 @@ public class MainActivity extends Activity {
 	
 	public void processCommand(View view) {
 		EditText command_text = (EditText) findViewById(R.id.command);
-//		TextView prompt = (TextView) findViewById(R.id.update_text);
 		
 		String command_string = command_text.getText().toString();
-//	 	String result[] = command_string.split(" "); //split the string up by words
 		List<String> args = new ArrayList<String>();
 		Matcher m = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(command_string);
 		//pull out the command
@@ -165,12 +164,21 @@ public class MainActivity extends Activity {
 		
 		if(cmd == null) {
 			//empty command given, just append a new prompt
-			this.appendOutput("");
+//			this.appendOutput("");
 		} else {
 			current_command = map.get(cmd);
 //			String prompt_string = buildPromptString(default_command.get_current_directory());
 			if(current_command == null) {
-				appendOutput("bash: " + cmd + ": command not found");
+//				appendOutput("bash: " + cmd + ": command not found");
+				//not a built in command, try farming out to the GenericRunner
+				String[] argsArray = new String[args.size() +1];
+				argsArray[0] = cmd;
+				for (int i = 1; i < args.size(); i++) {
+					argsArray[i] = args.remove(0);
+				}
+				if (new GenericRunner().execute(this, argsArray) == 0) {
+					command_text.setText("");
+				}
 			}
 			else {
 				String[] argsArray = args.toArray(new String[ args.size() ]);
@@ -180,6 +188,7 @@ public class MainActivity extends Activity {
 				}
 			}
 		}
+		this.appendPrompt();
 	}
 	
 	
@@ -219,8 +228,7 @@ public class MainActivity extends Activity {
 	 */
 	public void appendOutput(String output) {
 		if (output != null) {
-			String ps1 = buildPromptString(curWrkDir);
-			outputLines.add(ps1 + output);
+			outputLines.add(output);
 		}
 			
 		TextView prompt = (TextView) findViewById(R.id.update_text);
@@ -236,6 +244,15 @@ public class MainActivity extends Activity {
 	            findViewById(R.id.command).requestFocus();
 	        }
 	    });
+	}
+	
+	/**
+	 * Append a prompt to the output
+	 */
+	public void appendPrompt() {
+		String ps1 = buildPromptString(curWrkDir);
+		assert ps1 != null;
+		appendOutput(ps1);
 	}
 	
 	public void clearOutput() {
