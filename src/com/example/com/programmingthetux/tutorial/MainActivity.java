@@ -42,12 +42,15 @@ import com.example.com.programmingthetux.commands.Whois;
 
 public class MainActivity extends Activity {
 	private static final String TAG = "MainActivity";
+	
 	private static final String USER_PROMPT = "$";
 	private static final String ROOT_PROMPT = "#";
+	private String bash_prompt = "%u: %s "; //%s will be replaced by the working directory
+	
 	private Command current_command = null;
 	private Command default_command = new Pwd();
 	private HashMap<String, Command> map = new HashMap<String, Command>();
-	private String bash_prompt = "%u: %s "; //%s will be replaced by the working directory
+	
 	//this can be updated to reflect the apps current working directory
 	private String curWrkDir = "/";	 
 
@@ -55,14 +58,9 @@ public class MainActivity extends Activity {
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		this.setContentView(R.layout.activity_main);
-		
-		
 
-
-
-		
 		final EditText command_text = (EditText) findViewById(R.id.command);
-//		command_text.setImeActionLabel("execute", KeyEvent.KEYCODE_ENTER);
+		
 		command_text.setOnKeyListener(new OnKeyListener() {
 			public boolean onKey(View v, int keyCode, KeyEvent event) {
 		        // If the event is a key-down event on the "enter" button
@@ -79,56 +77,49 @@ public class MainActivity extends Activity {
 		});
 		
 		/* Add the commands to the hashmap */
-		map.put("cat",new Cat());
-		map.put("cd",new Cd());
-		map.put("clear",new Clear());
-		map.put("date", new Date());
-		map.put("echo", new Echo());
-		map.put("find", new Find());
-		map.put("help", new Help());
-		map.put("less", new Less());
-		map.put("ls", new Ls());
+		map.put("cat",   new Cat());
+		map.put("cd",    new Cd());
+		map.put("clear", new Clear());
+		map.put("date",  new Date());
+		map.put("echo",  new Echo());
+		map.put("find",  new Find());
+		map.put("help",  new Help());
+		map.put("less",  new Less());
+		map.put("ls",    new Ls());
 		map.put("mkdir", new Mkdir());
-		map.put("mv", new Mv());
-		map.put("open", new Open());
-		map.put("ping", new Ping());
-		map.put("pwd", new Pwd());
-		map.put("rm", new Rm());
+		map.put("mv",    new Mv());
+		map.put("open",  new Open());
+		map.put("ping",  new Ping());
+		map.put("pwd",   new Pwd());
+		map.put("rm",    new Rm());
 		map.put("rmdir", new Rmdir());
-		map.put("tail", new Tail());
+		map.put("tail",  new Tail());
 		map.put("which", new Which());
 		map.put("whois", new Whois());
 		
 		default_command = map.get("pwd");
-//		String prompt_string = buildPromptString(default_command.get_current_directory());
-//		prompt.setText(prompt_string); 
 		appendOutput("");
 	}
 
 	@Override
 	protected void onResume() {
-		// TODO Auto-generated method stub
 		super.onResume();
 	}
 
 	@Override
 	protected void onPause() {
-		// TODO Auto-generated method stub
 		super.onPause();
 	}
 
 	@Override
 	protected void onDestroy() {
-		// TODO Auto-generated method stub
 		super.onDestroy();
 	}
 	
 	public void processCommand(View view) {
 		EditText command_text = (EditText) findViewById(R.id.command);
-//		TextView prompt = (TextView) findViewById(R.id.update_text);
 		
 		String command_string = command_text.getText().toString();
-//	 	String result[] = command_string.split(" "); //split the string up by words
 		List<String> args = new ArrayList<String>();
 		Matcher m = Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(command_string);
 		//pull out the command
@@ -136,7 +127,7 @@ public class MainActivity extends Activity {
 		try {
 			m.find();
 			cmd = m.group(1);
-		} catch (IllegalStateException e) {}
+		} catch (IllegalStateException e) { }
 		
 		//pull out the arguments
 		while (m.find()) {
@@ -149,7 +140,6 @@ public class MainActivity extends Activity {
 			this.appendOutput("");
 		} else {
 			current_command = map.get(cmd);
-//			String prompt_string = buildPromptString(default_command.get_current_directory());
 			if(current_command == null) {
 				appendOutput("bash: " + cmd + ": command not found");
 			}
